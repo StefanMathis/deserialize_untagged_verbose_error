@@ -1,6 +1,6 @@
 [package]
 name = "deserialize_untagged_verbose_error"
-version = "0.1.2"
+version = "0.1.3"
 edition = "2024"
 description = "A Rust procedural macro for creating verbose errors when deserializing untagged enums with Serde."
 readme = "README.md"
@@ -10,7 +10,7 @@ repository = "https://github.com/StefanMathis/deserialize_untagged_verbose_error
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde-value = "0.7"
-deserialize_untagged_verbose_error_macro = { version = "0.1", path = "deserialize_untagged_verbose_error_macro"}
+deserialize_untagged_verbose_error_macro = { version = "0.1.2", path = "deserialize_untagged_verbose_error_macro"}
 
 [dev-dependencies]
 indoc = "1.0"
