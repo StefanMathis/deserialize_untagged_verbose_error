@@ -153,16 +153,14 @@ pub fn deserialize_untagged_verbose_error(input: TokenStream) -> TokenStream {
             where
                 __D: serde::de::Deserializer<'de>,
             {
-                let __content =
-                <serde::__private::de::Content as serde::Deserialize>::deserialize(__deserializer)?;
-                let __deserializer =
-                    serde::__private::de::ContentRefDeserializer::<__D::Error>::new(&__content);
                 use serde::de::Error;
+
+                let __content: serde_value::Value = serde::Deserialize::deserialize(__deserializer)?;
 
                 let mut __errors: [::std::mem::MaybeUninit<(&'static str, __D::Error)>; #number_variants] = [const {::std::mem::MaybeUninit::uninit()}; #number_variants];
                 let mut __counter: usize = 0;
 
-                #(match #item_names::deserialize(__deserializer) {
+                #(match #item_names::deserialize(serde_value::ValueDeserializer::new(__content.clone())) {
                     Ok(__var) => return Ok(#item_enum_name::#variants(__var)),
                     Err(__error) => {
                         let __elem = &mut __errors[__counter];
