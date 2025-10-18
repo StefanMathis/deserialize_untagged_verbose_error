@@ -1,9 +1,8 @@
 #![doc = include_str!("../README.md")]
 
-// Make serde available to the macros
 pub use deserialize_untagged_verbose_error_macro::DeserializeUntaggedVerboseError;
-pub use serde;
-pub use serde_value;
+pub use serde as __serde;
+pub use serde_value as __serde_value;
 
 /**
 The error returned by [`DeserializeUntaggedVerboseError`].

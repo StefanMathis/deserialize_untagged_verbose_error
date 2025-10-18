@@ -1,8 +1,8 @@
 deserialize_untagged_verbose_error
 ==================================
 
-[`DeserializeUntaggedVerboseError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.4/deserialize_untagged_verbose_error/derive.DeserializeUntaggedVerboseError.html
-[`UntaggedEnumDeError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.4/deserialize_untagged_verbose_error/struct.UntaggedEnumDeError.html
+[`DeserializeUntaggedVerboseError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/derive.DeserializeUntaggedVerboseError.html
+[`UntaggedEnumDeError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/struct.UntaggedEnumDeError.html
 
 In [serde](https://serde.rs), using the [`untagged`](https://serde.rs/enum-representations.html#untagged)
 representation of an enum has one big disadvantage when deserializing: 
@@ -208,4 +208,4 @@ is explained.
 
 # Documentation
 
-The full API documentation is available at [https://docs.rs/deserialize_untagged_verbose_error/0.1.4/deserialize_untagged_verbose_error/](https://docs.rs/deserialize_untagged_verbose_error/0.1.4/deserialize_untagged_verbose_error/).
+The full API documentation is available at [https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/](https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/).

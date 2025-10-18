@@ -148,19 +148,19 @@ pub fn deserialize_untagged_verbose_error(input: TokenStream) -> TokenStream {
 
     return TokenStream::from(quote! {
 
-        impl #impl_de_generics serde::de::Deserialize<'de> for #item_enum_name #impl_generics #where_clause {
+        impl #impl_de_generics deserialize_untagged_verbose_error::__serde::de::Deserialize<'de> for #item_enum_name #impl_generics #where_clause {
             fn deserialize<__D>(__deserializer: __D) -> Result<Self, __D::Error>
             where
-                __D: serde::de::Deserializer<'de>,
+                __D: deserialize_untagged_verbose_error::__serde::de::Deserializer<'de>,
             {
-                use serde::de::Error;
+                use deserialize_untagged_verbose_error::__serde::de::Error;
 
-                let __content: serde_value::Value = serde::Deserialize::deserialize(__deserializer)?;
+                let __content: deserialize_untagged_verbose_error::__serde_value::Value = deserialize_untagged_verbose_error::__serde::Deserialize::deserialize(__deserializer)?;
 
                 let mut __errors: [::std::mem::MaybeUninit<(&'static str, __D::Error)>; #number_variants] = [const {::std::mem::MaybeUninit::uninit()}; #number_variants];
                 let mut __counter: usize = 0;
 
-                #(match #item_names::deserialize(serde_value::ValueDeserializer::new(__content.clone())) {
+                #(match #item_names::deserialize(deserialize_untagged_verbose_error::__serde_value::ValueDeserializer::new(__content.clone())) {
                     Ok(__var) => return Ok(#item_enum_name::#variants(__var)),
                     Err(__error) => {
                         let __elem = &mut __errors[__counter];
