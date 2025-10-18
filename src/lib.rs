@@ -3,6 +3,7 @@
 // Make serde available to the macros
 pub use deserialize_untagged_verbose_error_macro::DeserializeUntaggedVerboseError;
 pub use serde;
+pub use serde_value;
 
 /**
 The error returned by [`DeserializeUntaggedVerboseError`].
