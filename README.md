@@ -4,20 +4,28 @@ deserialize_untagged_verbose_error
 [`DeserializeUntaggedVerboseError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/derive.DeserializeUntaggedVerboseError.html
 [`UntaggedEnumDeError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/struct.UntaggedEnumDeError.html
 
-In [serde](https://serde.rs), using the [`untagged`](https://serde.rs/enum-representations.html#untagged)
+In [serde](https://serde.rs), using the
+[`untagged`](https://serde.rs/enum-representations.html#untagged)
 representation of an enum has one big disadvantage when deserializing: 
 The error message returned in case of failure is very unspecific and does not
-explain why deserializing the different variants failed. There have been [attempts to
-integrate a more verbose handling into serde](https://github.com/serde-rs/serde/pull/1544)
+explain why deserializing the different variants failed. There have been
+[attempts to integrate a more verbose handling into serde](https://github.com/serde-rs/serde/pull/1544)
 in the past, but so far, no consensus has been reached.
 
-This crate offers a macro [`DeserializeUntaggedVerboseError`] which can be applied
-to any macro where each variant is a tuple struct with a single field. It behaves
-in the same way as a combination of the [`Deserialize`](https://serde.rs/derive.html)
+This crate offers a macro [`DeserializeUntaggedVerboseError`] which can be
+applied to any macro where each variant is a tuple struct with a single field.
+It behaves in the same way as a combination of the [`Deserialize`](https://serde.rs/derive.html)
 with the [`untagged`](https://serde.rs/enum-representations.html#untagged) attribute.
 However, in case of a deserialization failure, it collects all errors into an 
 [`UntaggedEnumDeError`], providing detailed information why deserializing each 
-variant failed. The following snippet shows a side-by-side comparison with the
+variant failed.
+
+> **Feedback welcome!**  
+> Found a bug, missing docs, or have a feature request?  
+> Please open an issue on GitHub.
+
+
+The following snippet shows a side-by-side comparison with the
 native [serde](https://serde.rs) error message:
 
 ```rust
