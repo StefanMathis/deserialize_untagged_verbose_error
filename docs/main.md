@@ -1,15 +1,3 @@
-deserialize_untagged_verbose_error
-==================================
-
-[`DeserializeUntaggedVerboseError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/derive.DeserializeUntaggedVerboseError.html
-[`UntaggedEnumDeError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/struct.UntaggedEnumDeError.html
-
-[![Documentation](https://docs.rs/deserialize_untagged_verbose_error/badge.svg)](https://docs.rs/deserialize_untagged_verbose_error)
-
-A library for creating verbose error messages when deserializing untagged enums.
-
-The full API documentation is available at https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error.
-
 > **Feedback welcome!**  
 > Found a bug, missing docs, or have a feature request?  
 > Please open an issue on [GitHub](https://github.com/StefanMathis/deserialize_untagged_verbose_error.git).
@@ -29,11 +17,6 @@ with the [`untagged`](https://serde.rs/enum-representations.html#untagged) attri
 However, in case of a deserialization failure, it collects all errors into an 
 [`UntaggedEnumDeError`], providing detailed information why deserializing each 
 variant failed.
-
-> **Feedback welcome!**  
-> Found a bug, missing docs, or have a feature request?  
-> Please open an issue on GitHub.
-
 
 The following snippet shows a side-by-side comparison with the
 native [serde](https://serde.rs) error message:

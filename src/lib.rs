@@ -1,4 +1,12 @@
-#![doc = include_str!("../README.md")]
+/*!
+[`DeserializeUntaggedVerboseError`]: crate::DeserializeUntaggedVerboseError
+[`UntaggedEnumDeError`]: crate::UntaggedEnumDeError
+
+A library for creating verbose error messages when deserializing untagged enums.
+
+ */
+#![doc = include_str!("../docs/main.md")]
+#![deny(missing_docs)]
 
 pub use deserialize_untagged_verbose_error_macro::DeserializeUntaggedVerboseError;
 pub use serde as __serde;
