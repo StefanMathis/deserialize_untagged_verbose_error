@@ -34,9 +34,9 @@ pub struct UntaggedEnumDeError<const VARIANTS: usize, D: std::error::Error> {
         Value(f64),
     }
     ```
-    - `errors[0]` explaions why deserializing into a `String` failed,
-    - `errors[1]` explaions why deserializing into an `usize` failed,
-    - `errors[2]` explaions why deserializing into a `f64` failed.
+    - `errors[0]` explains why deserializing into a `String` failed,
+    - `errors[1]` explains why deserializing into an `usize` failed,
+    - `errors[2]` explains why deserializing into a `f64` failed.
      */
     pub errors: [(&'static str, D); VARIANTS],
 }

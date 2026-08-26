@@ -5,224 +5,484 @@ deserialize_untagged_verbose_error
 docs/main.md and (if available docs/end.md). Do not modify this file, instead
 modify the components. -->
 
-[`DeserializeUntaggedVerboseError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/derive.DeserializeUntaggedVerboseError.html
-[`UntaggedEnumDeError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/struct.UntaggedEnumDeError.html
+[`DeserializeUntaggedVerboseError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.6/deserialize_untagged_verbose_error/derive.DeserializeUntaggedVerboseError.html
+[`UntaggedEnumDeError`]: https://docs.rs/deserialize_untagged_verbose_error/0.1.6/deserialize_untagged_verbose_error/struct.UntaggedEnumDeError.html
 
 [![Documentation](https://docs.rs/deserialize_untagged_verbose_error/badge.svg)](https://docs.rs/deserialize_untagged_verbose_error)
 
 A library for creating verbose error messages when deserializing untagged enums.
 
-The full API documentation is available at https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error.
+The full API documentation is available at https://docs.rs/deserialize_untagged_verbose_error/0.1.6/deserialize_untagged_verbose_error.
 
-> **Feedback welcome!**  
-> Found a bug, missing docs, or have a feature request?  
-> Please open an issue on [GitHub](https://github.com/StefanMathis/deserialize_untagged_verbose_error.git).
+> **Feedback welcome!**
+> Found a bug, missing docs, or have a feature request?
+> Please open an issue on [GitHub](https://github.com/StefanMathis/deserialize_untagged_verbose_error/issues).
 
-In [serde](https://serde.rs), using the
-[`untagged`](https://serde.rs/enum-representations.html#untagged)
-representation of an enum has one big disadvantage when deserializing: 
-The error message returned in case of failure is very unspecific and does not
-explain why deserializing the different variants failed. There have been
-[attempts to integrate a more verbose handling into serde](https://github.com/serde-rs/serde/pull/1544)
-in the past, but so far, no consensus has been reached.
+[`DeserializeUntaggedVerboseError`] is a drop-in replacement for Serde's
+`#[serde(untagged)]` enum deserialization that provides detailed errors when
+none of the variants match.
 
-This crate offers a macro [`DeserializeUntaggedVerboseError`] which can be
-applied to any macro where each variant is a tuple struct with a single field.
-It behaves in the same way as a combination of the [`Deserialize`](https://serde.rs/derive.html)
-with the [`untagged`](https://serde.rs/enum-representations.html#untagged) attribute.
-However, in case of a deserialization failure, it collects all errors into an 
-[`UntaggedEnumDeError`], providing detailed information why deserializing each 
-variant failed.
+It supports unit, tuple, and struct variants, generic types, and the usual Serde
+attributes, while retaining the same variant-selection semantics as Serde's
+untagged representation. When deserialization fails, instead of simply reporting
+that no variant matched, it tells you why each variant failed.
 
-The following snippet shows a side-by-side comparison with the
-native [serde](https://serde.rs) error message:
+## Basic usage
+
+The following example compares Serde's standard error with the error
+produced by this crate.
 
 ```rust
 use deserialize_untagged_verbose_error::DeserializeUntaggedVerboseError;
-use serde::Deserialize;
 use indoc::indoc;
+use serde::Deserialize;
+use yaml_serde;
 
-// Just here to provide a payload to test against - but the macro works with
-// any serde-supported format
-use serde_yaml;
-
-// Random structs used as variant of the enum
-#[derive(Debug, Deserialize, PartialEq)]
-#[allow(dead_code)]
-struct Point {
-    x: f64,
-    y: f64,
-}
-#[derive(Debug, Deserialize, PartialEq)]
-#[allow(dead_code)]
-struct Message {
-    epochtime: usize,
-    content: String,
-}
-
-// Standard Serde approach
+// Standard Serde approach.
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(untagged)]
-#[allow(dead_code)]
-enum VarSerde {
-    Message(Message),
-    Point(Point),
-    Value(f64),
+#[serde(deny_unknown_fields)]
+enum ValueSerde {
+    Point {
+        x: f64,
+        y: f64,
+    },
+    Message {
+        #[serde(rename = "time", alias = "epochtime")]
+        epochtime: usize,
+        content: String,
+        #[serde(default)]
+        source: String,
+    },
+    Coordinates(f64, f64),
 }
 
-// Using the macro provided by this crate
+// Using DeserializeUntaggedVerboseError.
 #[derive(Debug, DeserializeUntaggedVerboseError, PartialEq)]
-#[allow(dead_code)]
-enum VarVerboseErr {
-    Message(Message),
-    Point(Point),
-    Value(f64),
+#[serde(deny_unknown_fields)]
+enum ValueVerbose {
+    Point {
+        x: f64,
+        y: f64,
+    },
+    Message {
+        #[serde(rename = "time", alias = "epochtime")]
+        epochtime: usize,
+        content: String,
+        #[serde(default)]
+        source: String,
+    },
+    Coordinates(f64, f64),
 }
 
-let invalid_str = indoc! {"
----
-name: Serde
+let invalid = indoc! {"
+    ---
+    epochtime: not a timestamp
+    content: 42
 "};
 
-// Deserializing "invalid_str" fails, because it does not match any variant of
-// VarSerde / VarVerboseErr
-let err_serde = serde_yaml::from_str::<VarSerde>(invalid_str).unwrap_err();
-let err_verbose = serde_yaml::from_str::<VarVerboseErr>(invalid_str).unwrap_err();
+let serde_error =
+    yaml_serde::from_str::<ValueSerde>(invalid).unwrap_err();
 
-// Compare the error messages:
+let verbose_error =
+    yaml_serde::from_str::<ValueVerbose>(invalid).unwrap_err();
+
+// Serde only tells us that none of the variants matched.
 assert_eq!(
-    err_serde.to_string(),
-    "data did not match any variant of untagged enum VarSerde"
+    serde_error.to_string(),
+    "data did not match any variant of untagged enum ValueSerde"
 );
+
+// The verbose error explains why every variant failed.
 assert_eq!(
-    err_verbose.to_string(),
+    verbose_error.to_string(),
     indoc! {"
-    Failed to deserialize the untagged enum VarVerboseErr:
-    - Could not deserialize as Message: missing field `epochtime`.
-    - Could not deserialize as Point: missing field `x`.
-    - Could not deserialize as Value: invalid type: map, expected f64.
+    Failed to deserialize the untagged enum ValueVerbose:
+    - Could not deserialize as Point: unknown field `content`, expected `x` or `y`.
+    - Could not deserialize as Message: invalid type: integer `42`, expected a string.
+    - Could not deserialize as Coordinates: invalid type: map, expected a tuple of size 2.
     "}
 );
 
-// For valid inputs, both variants behave identical
-let valid_str = indoc! {"
----
-x: 1
-y: 2
+// For valid input, both approaches produce the same result.
+let valid = indoc! {"
+    ---
+    epochtime: 123456789
+    content: Hello
 "};
 
-let v1 = serde_yaml::from_str::<VarSerde>(valid_str).unwrap();
-match v1 {
-    VarSerde::Point(pt) => {
-        assert_eq!(pt.x, 1.0);
-        assert_eq!(pt.y, 2.0);
-    },
-    _ => panic!("Test failed")
-}
+let serde_value =
+    yaml_serde::from_str::<ValueSerde>(valid).unwrap();
 
-let v2 = serde_yaml::from_str::<VarVerboseErr>(valid_str).unwrap();
-match v2 {
-    VarVerboseErr::Point(pt) => {
-        assert_eq!(pt.x, 1.0);
-        assert_eq!(pt.y, 2.0);
-    },
-    _ => panic!("Test failed")
-}
-```
+let verbose_value =
+    yaml_serde::from_str::<ValueVerbose>(valid).unwrap();
 
-# Implementation and limitations
-
-For the example shown above, applying [`DeserializeUntaggedVerboseError`] to
-`VarVerboseErr` generates roughly the following code:
-
-```rust,ignore
-impl<'de> serde::de::Deserialize<'de> for VarDeUnVeEr {
-    fn deserialize<__D>(__deserializer: __D) -> Result<Self, __D::Error>
-    where
-        __D: serde::de::Deserializer<'de>,
-    {
-        let __content =
-            <serde::__private::de::Content as serde::Deserialize>::deserialize(__deserializer)?;
-        let __deserializer =
-            serde::__private::de::ContentRefDeserializer::<__D::Error>::new(&__content);
-        use serde::de::Error;
-        let mut __errors: [::std::mem::MaybeUninit<(&'static str, __D::Error)>; 3usize] =
-            [const { ::std::mem::MaybeUninit::uninit() }; 3usize];
-        let mut __counter: usize = 0;
-        match Message::deserialize(__deserializer) {
-            Ok(__var) => return Ok(VarDeUnVeEr::Message(__var)),
-            Err(__error) => {
-                let __elem = &mut __errors[__counter];
-                __elem.write((stringify!(Message), __error));
-                __counter += 1;
-            }
-        }
-        match Point::deserialize(__deserializer) {
-            Ok(__var) => return Ok(VarDeUnVeEr::Point(__var)),
-            Err(__error) => {
-                let __elem = &mut __errors[__counter];
-                __elem.write((stringify!(Point), __error));
-                __counter += 1;
-            }
-        }
-        match f64::deserialize(__deserializer) {
-            Ok(__var) => return Ok(VarDeUnVeEr::Value(__var)),
-            Err(__error) => {
-                let __elem = &mut __errors[__counter];
-                __elem.write((stringify!(Value), __error));
-                __counter += 1;
-            }
-        }
-        let __errors_init: [(&'static str, __D::Error); 3usize] = unsafe {
-            [
-                std::ptr::read(&__errors[0]).assume_init(),
-                std::ptr::read(&__errors[1]).assume_init(),
-                std::ptr::read(&__errors[2]).assume_init(),
-            ]
-        };
-        return Err(__D::Error::custom(
-            deserialize_untagged_verbose_error::UntaggedEnumDeError {
-                enum_name: stringify!(VarDeUnVeEr),
-                errors: __errors_init,
-            },
-        ));
+assert_eq!(
+    serde_value,
+    ValueSerde::Message {
+        epochtime: 123456789,
+        content: "Hello".to_string(),
+        source: String::new(),
     }
+);
+
+assert_eq!(
+    verbose_value,
+    ValueVerbose::Message {
+        epochtime: 123456789,
+        content: "Hello".to_string(),
+        source: String::new(),
+    }
+);
+```
+
+The macro works with any Serde-supported deserialization format. The example
+uses YAML simply because it makes the examples easy to read.
+
+# Supported enum variants
+
+[`DeserializeUntaggedVerboseError`] supports all three kinds of Rust enum variants.
+
+## Unit variants
+
+Unit variants work just like they do with Serde's untagged representation.
+
+```rust
+use deserialize_untagged_verbose_error::DeserializeUntaggedVerboseError;
+use indoc::indoc;
+use yaml_serde;
+
+#[derive(Debug, DeserializeUntaggedVerboseError, PartialEq)]
+enum Example {
+    Nothing,
+    Value(i32),
+}
+
+// A YAML null value can deserialize into the unit variant:
+let input = "---\n";
+let value: Example = yaml_serde::from_str(input).unwrap();
+assert_eq!(value, Example::Nothing);
+
+// Unit variants can also participate in the detailed error reporting
+let input = indoc! {"
+    ---
+    hello
+"};
+let error = yaml_serde::from_str::<Example>(input).unwrap_err();
+assert_eq!(
+    error.to_string(),
+    indoc! {"
+        Failed to deserialize the untagged enum Example:
+        - Could not deserialize as Nothing: invalid type: string \"hello\", expected unit.
+        - Could not deserialize as Value: invalid type: string \"hello\", expected i32.
+    "}
+);
+```
+
+## Tuple variants
+
+Tuple variants may contain one or multiple fields. The tuple length is checked
+before attempting to deserialize the individual fields. This ensures that a
+tuple variant is only considered a match when the input sequence has exactly the
+expected number of elements. This means that a sequence with the wrong number of
+elements is reported as such rather than accidentally matching a shorter tuple
+variant.
+
+```rust
+use deserialize_untagged_verbose_error::DeserializeUntaggedVerboseError;
+use indoc::indoc;
+use yaml_serde;
+
+#[derive(Debug, DeserializeUntaggedVerboseError, PartialEq)]
+enum Example {
+    Pair(i32, String),
+    Triple(String, f64, bool),
+}
+
+// A two-element sequence selects Pair:
+let input = indoc! {"
+    ---
+    - 42
+    - hello
+"};
+let value: Example = yaml_serde::from_str(input).unwrap();
+assert_eq!(
+    value,
+    Example::Pair(42, "hello".to_string())
+);
+
+// A three-element sequence selects Triple:
+let input = indoc! {"
+    ---
+    - hello
+    - 3.14
+    - true
+"};
+let value: Example = yaml_serde::from_str(input).unwrap();
+assert_eq!(
+    value,
+    Example::Triple("hello".to_string(), 3.14, true)
+);
+
+// Wrong sequence length
+let input = indoc! {"
+    ---
+    - 42
+    - hello
+    - too much
+"};
+let error = yaml_serde::from_str::<Example>(input).unwrap_err();
+assert_eq!(
+    error.to_string(),
+    indoc! {"
+        Failed to deserialize the untagged enum Example:
+        - Could not deserialize as Pair: invalid length 3, expected a tuple of size 2.
+        - Could not deserialize as Triple: invalid type: integer `42`, expected a string.
+    "}
+);
+```
+
+## Named variants
+
+```rust
+use deserialize_untagged_verbose_error::DeserializeUntaggedVerboseError;
+use indoc::indoc;
+use yaml_serde;
+
+#[derive(Debug, DeserializeUntaggedVerboseError, PartialEq)]
+enum Example {
+    Point {
+        x: f64,
+        y: f64,
+    },
+    Message {
+        content: String,
+    },
+}
+
+let input = indoc! {"
+    ---
+    x: 1
+    y: 2
+"};
+let value: Example = yaml_serde::from_str(input).unwrap();
+assert_eq!(
+    value,
+    Example::Point { x: 1.0, y: 2.0 }
+);
+```
+
+# Serde attributes
+
+The macro is designed to work with Serde's attributes rather than providing
+a separate attribute system.
+
+Container attributes can be placed directly on the enum:
+
+```rust,ignore
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+#[serde(deny_unknown_fields)]
+enum Example {
+    Integer {
+        value: i32,
+    },
+    Text {
+        value: String,
+    },
 }
 ```
 
-This has the following implications:
-- The macro only works for enums where all variants have a single field.
+Field attributes are supported as well:
 ```rust,ignore
-
-// This example compiles
-#[derive(Debug, DeserializeUntaggedVerboseError)]
-enum VarVerboseErr {
-    Message(Message),
-    Point(Point),
-    Value(f64),
-}
-
-// This one does not
 #[derive(Debug, DeserializeUntaggedVerboseError)]
 enum Example {
-    None, // Variants without fields are not allowed
-    Point(f64, f64), // Variants with more than one field are not allowed
-    Value { x: i64 }, // Struct variants are not allowed
+    Foo {
+        #[serde(rename = "the_value")]
+        value: i32,
+
+        #[serde(default)]
+        other: String,
+    },
 }
 ```
-- All errors which occur when trying to deserialize the different variants
-need to be collected into an array which is part of [`UntaggedEnumDeError`].
-Even though this array is allocated on the stack, this still leads to slight
-performance losses compared to the combination of `Deserialize` and `untagged`.
 
-# Alternatives to this crate
+Consequently, Serde's standard attributes such as `rename`, `alias`, `default`,
+and `deserialize_with` can be used directly on the corresponding fields and
+variants.
 
-[serde-untagged](https://crates.io/crates/serde-untagged) provides a much more
-general solution which works for all possible enum variants (not just tuple
-structs with one field). In exchange, it requires writing a lot of boilerplate
-and also does not provide a verbose error where the failure for each variant
-is explained.
+For example, `rename` changes the serialized/deserialized field name:
 
-# Documentation
+```rust
+use deserialize_untagged_verbose_error::DeserializeUntaggedVerboseError;
+use indoc::indoc;
+use yaml_serde;
 
-The full API documentation is available at [https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/](https://docs.rs/deserialize_untagged_verbose_error/0.1.5/deserialize_untagged_verbose_error/).
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+enum Example {
+    Foo {
+        #[serde(rename = "the_value")]
+        value: i32,
+    },
+}
+
+let input = indoc! {"
+    ---
+    the_value: 42
+"};
+
+let value: Example = yaml_serde::from_str(input).unwrap();
+
+match value {
+    Example::Foo { value } => assert_eq!(value, 42),
+}
+```
+
+Likewise, `alias` allows multiple names for the same field:
+
+```rust
+use deserialize_untagged_verbose_error::DeserializeUntaggedVerboseError;
+use indoc::indoc;
+use yaml_serde;
+
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+enum Example {
+    Foo {
+        #[serde(alias = "the_value")]
+        value: i32,
+    },
+}
+
+let input = indoc! {"
+    ---
+    the_value: 42
+"};
+
+let value: Example = yaml_serde::from_str(input).unwrap();
+
+match value {
+    Example::Foo { value } => assert_eq!(value, 42),
+}
+```
+
+The macro also supports attributes on tuple fields:
+
+```rust
+use deserialize_untagged_verbose_error::DeserializeUntaggedVerboseError;
+use indoc::indoc;
+use serde::de::Deserialize; // Bring trait into scope for String::deserialize
+use yaml_serde;
+
+fn deserialize_special_value<'de, D>(deserializer: D) -> Result<i32, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    value.parse().map_err(serde::de::Error::custom)
+}
+
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+enum Example {
+    Value(
+        #[serde(deserialize_with = "deserialize_special_value")]
+        i32,
+    ),
+}
+
+ // String representation of an integer
+let input = indoc! {"
+    ---
+    \"42\"
+"};
+let value: Example = yaml_serde::from_str(input).unwrap();
+match value {
+    Example::Value(value) => assert_eq!(value, 42),
+}
+```
+
+# Generics
+
+Generic enums are supported as well, provided their contained types satisfy
+Serde's usual `Deserialize` requirements.
+
+```rust
+use deserialize_untagged_verbose_error::DeserializeUntaggedVerboseError;
+use indoc::indoc;
+use yaml_serde;
+
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+enum Example<T> {
+    Foo {
+        value: T,
+    },
+}
+
+let input = indoc! {"
+    ---
+    value: 42
+"};
+let value: Example<i32> = yaml_serde::from_str(input).unwrap();
+match value {
+    Example::Foo { value } => assert_eq!(value, 42),
+}
+
+```
+
+Multiple generic parameters are supported too:
+
+```rust,ignore
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+enum Example<F, T> {
+    Point {
+        x: F,
+        y: F,
+    },
+    Value {
+        value: T,
+    },
+}
+```
+
+# Error handling
+
+When deserialization succeeds, [`DeserializeUntaggedVerboseError`] behaves like
+Serde's `untagged` representation: variants are attempted in declaration
+order and the first successful variant is returned.
+
+When all variants fail, the macro collects the individual errors into an
+[`UntaggedEnumDeError`]. The resulting error contains the name of the enum and
+the error produced while attempting each variant.
+
+This makes errors from deeply nested untagged enums substantially easier to
+diagnose. Instead of simply receiving
+
+`data did not match any variant of untagged enum MyEnum`
+
+you can see which variants were attempted and why each one failed.
+
+# Implementation notes
+
+Serde's `untagged` representation needs to attempt deserialization of the
+same input more than once. `DeserializeUntaggedVerboseError` therefore first
+deserializes the input into an intermediate representation and then replays
+that representation for each variant.
+
+The intermediate representation is used only during deserialization and is
+an implementation detail of the macro.
+
+Because all variant errors need to be retained when deserialization fails,
+using `DeserializeUntaggedVerboseError` has some additional overhead compared
+to Serde's native `untagged` implementation. In particular, the input needs
+to be buffered and each candidate variant is attempted independently.
+
+For applications where the additional diagnostic information is valuable,
+this trade-off can make failures considerably easier to understand and debug.
+
+# Alternatives
+
+[serde-untagged](https://crates.io/crates/serde-untagged) provides a more
+general mechanism for manually attempting several deserialization strategies.
+It is useful when the deserialization logic itself needs to be customized.
+
+`DeserializeUntaggedVerboseError`, on the other hand, is intended to provide a
+drop-in derive-style alternative to Serde's `#[serde(untagged)]` representation
+while retaining detailed information about why every candidate variant failed.
