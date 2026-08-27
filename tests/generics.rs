@@ -289,6 +289,8 @@ fn test_bound_with_generic_tuple_variant() {
 
     assert!(matches!(result, Ok(GenericBoundedTuple::Value(_))));
 }
+
+// TODO: This currently doesn't work, maybe future work if someone really needs it?
 // trait CustomDeserialize<'de>: Sized {
 //     fn deserialize_custom<D>(deserializer: D) -> Result<Self, D::Error>
 //     where

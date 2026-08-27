@@ -443,6 +443,12 @@ diagnose. Instead of simply receiving
 
 you can see which variants were attempted and why each one failed.
 
+# Known limitations
+
+`deserialize_with` is supported on enum variants, including generic variants.
+Custom deserializers that impose additional generic bounds via
+`#[serde(bound(...))]` are currently not supported.
+
 # Implementation notes
 
 Serde's `untagged` representation needs to attempt deserialization of the
