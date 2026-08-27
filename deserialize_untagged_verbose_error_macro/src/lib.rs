@@ -114,22 +114,25 @@ pub fn deserialize_untagged_verbose_error(
             }
         }
 
-        /// Generates a helper struct for struct tuple variants.
         fn generate_helper_struct(
             &self,
             enum_name: &Ident,
             enum_generics: &Generics,
             enum_attrs: &[Attribute],
         ) -> proc_macro2::TokenStream {
-            let should_generate = match &self.kind {
+            // Only generate a helper struct if we have a struct variant or a
+            // tuple variant with field attributes. The latter is necessary so
+            // we have something to attach the attributes to.
+            if !(match &self.kind {
                 VariantKind::Named(_) => true,
                 VariantKind::Unnamed(fields) => fields.iter().any(UnnamedFieldInfo::has_attrs),
                 VariantKind::Unit => false,
-            };
-
-            if !should_generate {
+            }) || !self.attrs.is_empty()
+            {
                 return TokenStream::new();
             }
+
+            let variant_attrs = &self.attrs;
 
             match &self.kind {
                 VariantKind::Named(fields) => {
@@ -149,6 +152,7 @@ pub fn deserialize_untagged_verbose_error(
                             deserialize_untagged_verbose_error::__serde::Deserialize
                         )]
                         #(#enum_attrs)*
+                        #(#variant_attrs)*
                         struct #helper_struct #helper_generics {
                             #(
                                 #(#field_attrs)*
@@ -170,6 +174,7 @@ pub fn deserialize_untagged_verbose_error(
                         #[derive(
                             deserialize_untagged_verbose_error::__serde::Deserialize
                         )]
+                        #(#variant_attrs)*
                         struct #helper_struct #helper_generics(
                             #(
                                 #(#field_attrs)*
@@ -244,6 +249,52 @@ pub fn deserialize_untagged_verbose_error(
             }
         }
 
+        /// If the variant has a deserialize_with annotation, we need to outsource
+        /// the deserialization attempt to the function. This method checks if
+        /// deserialize_with was specified and then uses the given function path.
+        fn deserialize_with(&self) -> Option<syn::Path> {
+            self.attrs.iter().find_map(|attr| {
+                if !attr.path().is_ident("serde") {
+                    return None;
+                }
+
+                let mut result = None;
+
+                let _ = attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("deserialize_with") {
+                        let value = meta.value()?;
+                        let literal: syn::LitStr = value.parse()?;
+                        result = Some(literal.parse()?);
+                    }
+
+                    Ok(())
+                });
+
+                result
+            })
+        }
+
+        /// If this is true, don't attempt to deserialize at all
+        fn skip_deserializing(&self) -> bool {
+            self.attrs.iter().any(|attr| {
+                if !attr.path().is_ident("serde") {
+                    return false;
+                }
+
+                let mut skip = false;
+
+                let _ = attr.parse_nested_meta(|meta| {
+                    if meta.path.is_ident("skip_deserializing") {
+                        skip = true;
+                    }
+
+                    Ok(())
+                });
+
+                skip
+            })
+        }
+
         fn helper_struct_name(&self, enum_name: &Ident) -> String {
             format!(
                 "__DeserializeUntaggedVerboseError_{}_{}",
@@ -256,11 +307,30 @@ pub fn deserialize_untagged_verbose_error(
             enum_name: &Ident,
             enum_generics: &Generics,
         ) -> proc_macro2::TokenStream {
-            let deserialize_type = self.deserialize_type(enum_name, enum_generics);
             let constructor = self.generate_constructor(enum_name);
             let ident = &self.ident;
 
-            let tuple_length_check = match &self.kind {
+            // Outsource the deserialization attempt to the deserialize_with function if one was given.
+            if let Some(deserialize_with) = self.deserialize_with() {
+                return quote! {
+                    match #deserialize_with(
+                        deserialize_untagged_verbose_error::__serde_value::ValueDeserializer::new(
+                            __content.clone()
+                        )
+                    ) {
+                        Ok(__var) => return Ok(#constructor),
+                        Err(__error) => {
+                            let __elem = &mut __errors[__counter];
+                            __elem.write((stringify!(#ident), __error));
+                            __counter += 1;
+                        },
+                    }
+                };
+            }
+
+            let deserialize_type = self.deserialize_type(enum_name, enum_generics);
+
+            match &self.kind {
                 VariantKind::Unnamed(fields) => {
                     let expected_len = fields.len();
 
@@ -298,6 +368,7 @@ pub fn deserialize_untagged_verbose_error(
                         }
                     }
                 }
+
                 _ => {
                     quote! {
                         match <#deserialize_type as deserialize_untagged_verbose_error::__serde::Deserialize<'de>>::deserialize(
@@ -314,9 +385,7 @@ pub fn deserialize_untagged_verbose_error(
                         }
                     }
                 }
-            };
-
-            tuple_length_check
+            }
         }
     }
 
@@ -424,14 +493,19 @@ pub fn deserialize_untagged_verbose_error(
         })
         .collect();
 
-    let number_variants = item_enum.variants.len();
+    let deserializable_variants: Vec<&VariantInfo> = variants
+        .iter()
+        .filter(|variant| !variant.skip_deserializing())
+        .collect();
+
+    let number_variants = deserializable_variants.len();
     let indices: Vec<Index> = (0..number_variants).map(|i| Index::from(i)).collect();
 
-    let deserialize_attempts = variants
+    let deserialize_attempts = deserializable_variants
         .iter()
         .map(|variant| variant.generate_deserialize_attempt(&item_enum_name, &item_enum.generics));
 
-    let helper_structs = variants.iter().map(|variant| {
+    let helper_structs = deserializable_variants.iter().map(|variant| {
         variant.generate_helper_struct(&item_enum_name, &item_enum.generics, &item_enum.attrs)
     });
 

@@ -238,3 +238,259 @@ fn test_named_field_default() {
         }
     }
 }
+
+struct VariantFoo {
+    x: String,
+    y: i32,
+    z: bool,
+}
+
+fn deserialize_struct_variant<'de, D>(deserializer: D) -> Result<VariantFoo, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct DeHelper {
+        x: String,
+        y: i32,
+    }
+
+    let helper = DeHelper::deserialize(deserializer)?;
+
+    Ok(VariantFoo {
+        x: helper.x,
+        y: helper.y,
+        z: true,
+    })
+}
+
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+#[allow(dead_code)]
+enum VariantWithAttribute {
+    #[serde(deserialize_with = "deserialize_struct_variant")]
+    Foo { x: String, y: i32, z: bool },
+}
+
+#[test]
+fn test_attribute_with_struct_variant() {
+    {
+        let yaml = indoc! {"
+            ---
+            x: hello
+            y: 42
+        "};
+
+        let result = yaml_serde::from_str::<VariantWithAttribute>(yaml);
+
+        assert!(matches!(
+            result,
+            Ok(VariantWithAttribute::Foo {
+                x,
+                y,
+                z: true,
+            }) if x == "hello" && y == 42
+        ));
+    }
+    {
+        // false is ignored due to the custom deserializer
+        let yaml = indoc! {"
+            ---
+            x: hello
+            y: 42
+            z: false
+        "};
+
+        let result = yaml_serde::from_str::<VariantWithAttribute>(yaml);
+
+        assert!(matches!(
+            result,
+            Ok(VariantWithAttribute::Foo {
+                x,
+                y,
+                z: true,
+            }) if x == "hello" && y == 42
+        ));
+    }
+    {
+        // false is ignored due to the custom deserializer
+        let yaml = indoc! {"
+            ---
+            x: hello
+            y: 42
+            z: 84
+        "};
+
+        let result = yaml_serde::from_str::<VariantWithAttribute>(yaml);
+
+        assert!(matches!(
+            result,
+            Ok(VariantWithAttribute::Foo {
+                x,
+                y,
+                z: true,
+            }) if x == "hello" && y == 42
+        ));
+    }
+}
+
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+#[allow(dead_code)]
+enum StructVariantWithAttributes {
+    #[serde(skip_deserializing)]
+    Skipped {
+        x: String,
+        y: i32,
+    },
+    Selected {
+        x: String,
+        y: i32,
+    },
+}
+
+#[test]
+fn test_skip_deserializing_with_struct_variant() {
+    let yaml = indoc! {"
+        ---
+        x: hello
+        y: 42
+    "};
+
+    let result = yaml_serde::from_str::<StructVariantWithAttributes>(yaml);
+
+    assert!(matches!(
+        result,
+        Ok(StructVariantWithAttributes::Selected { x, y })
+            if x == "hello" && y == 42
+    ));
+}
+
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+#[allow(dead_code)]
+enum StructVariantSkipAndDeserializeWith {
+    #[serde(
+        skip_deserializing,
+        deserialize_with = "deserialize_struct_should_never_be_called"
+    )]
+    Skipped {
+        x: String,
+        y: i32,
+    },
+
+    Selected {
+        x: String,
+        y: i32,
+    },
+}
+
+#[allow(dead_code)]
+struct StructVariantFoo {
+    x: String,
+    y: i32,
+}
+
+#[allow(dead_code)]
+fn deserialize_struct_should_never_be_called<'de, D>(
+    _deserializer: D,
+) -> Result<StructVariantFoo, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    panic!("deserialize_with was called for a skipped variant");
+}
+
+#[test]
+fn test_skip_deserializing_overrides_deserialize_with_struct_variant() {
+    let yaml = indoc! {"
+        ---
+        x: hello
+        y: 42
+    "};
+
+    let result = yaml_serde::from_str::<StructVariantSkipAndDeserializeWith>(yaml);
+
+    assert!(matches!(
+        result,
+        Ok(StructVariantSkipAndDeserializeWith::Selected { x, y })
+            if x == "hello" && y == 42
+    ));
+}
+
+fn deserialize_struct_variant_from_map<'de, D>(deserializer: D) -> Result<VariantFoo, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    struct DeHelper {
+        x: String,
+        y: i32,
+    }
+
+    let helper = DeHelper::deserialize(deserializer)?;
+
+    Ok(VariantFoo {
+        x: helper.x,
+        y: helper.y,
+        z: true,
+    })
+}
+
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+#[allow(dead_code)]
+enum LaterDeserializeWithStruct {
+    First(i32),
+    #[serde(deserialize_with = "deserialize_struct_variant_from_map")]
+    Second {
+        x: String,
+        y: i32,
+        z: bool,
+    },
+}
+
+#[test]
+fn test_deserialize_with_later_struct_variant() {
+    let yaml = indoc! {"
+        ---
+        x: hello
+        y: 42
+        z: 84
+    "};
+
+    let result = yaml_serde::from_str::<LaterDeserializeWithStruct>(yaml);
+
+    assert!(matches!(
+        result,
+        Ok(LaterDeserializeWithStruct::Second {
+            x,
+            y,
+            z: true,
+        }) if x == "hello" && y == 42
+    ));
+}
+
+#[derive(Debug, DeserializeUntaggedVerboseError)]
+#[allow(dead_code)]
+enum VariantDoesNotAppearInErrorReporting {
+    #[serde(skip_deserializing)]
+    Skipped {
+        value: i32,
+    },
+    Selected {
+        value: String,
+    },
+}
+
+#[test]
+fn test_skip_deserializing_omitted_from_errors() {
+    let yaml = indoc! {"
+        ---
+        value: true
+    "};
+
+    let result = yaml_serde::from_str::<VariantDoesNotAppearInErrorReporting>(yaml);
+
+    let error = result.expect_err("deserialization should fail");
+    let error = error.to_string();
+
+    assert!(error.contains("Selected"));
+    assert!(!error.contains("Skipped"));
+}
