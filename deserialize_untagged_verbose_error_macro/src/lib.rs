@@ -114,21 +114,28 @@ pub fn deserialize_untagged_verbose_error(
             }
         }
 
+        /// Returns whether this variant requires a generated helper struct.
+        ///
+        /// Helper structs are generated for named variants and for tuple variants
+        /// with field attributes, unless the variant itself has attributes such as
+        /// `deserialize_with`, which provide an alternative deserialization path.
+        fn needs_helper_struct(&self) -> bool {
+            let needs_helper_for_fields = match &self.kind {
+                VariantKind::Named(_) => true,
+                VariantKind::Unnamed(fields) => fields.iter().any(UnnamedFieldInfo::has_attrs),
+                VariantKind::Unit => false,
+            };
+
+            needs_helper_for_fields && self.attrs.is_empty()
+        }
+
         fn generate_helper_struct(
             &self,
             enum_name: &Ident,
             enum_generics: &Generics,
             enum_attrs: &[Attribute],
         ) -> proc_macro2::TokenStream {
-            // Only generate a helper struct if we have a struct variant or a
-            // tuple variant with field attributes. The latter is necessary so
-            // we have something to attach the attributes to.
-            if !(match &self.kind {
-                VariantKind::Named(_) => true,
-                VariantKind::Unnamed(fields) => fields.iter().any(UnnamedFieldInfo::has_attrs),
-                VariantKind::Unit => false,
-            }) || !self.attrs.is_empty()
-            {
+            if !self.needs_helper_struct() {
                 return TokenStream::new();
             }
 
@@ -328,6 +335,7 @@ pub fn deserialize_untagged_verbose_error(
                 };
             }
 
+            // Perform deserialization ourselves
             let deserialize_type = self.deserialize_type(enum_name, enum_generics);
 
             match &self.kind {
@@ -499,7 +507,7 @@ pub fn deserialize_untagged_verbose_error(
         .collect();
 
     let number_variants = deserializable_variants.len();
-    let indices: Vec<Index> = (0..number_variants).map(|i| Index::from(i)).collect();
+    let indices: Vec<Index> = (0..number_variants).map(Index::from).collect();
 
     let deserialize_attempts = deserializable_variants
         .iter()
@@ -509,7 +517,25 @@ pub fn deserialize_untagged_verbose_error(
         variant.generate_helper_struct(&item_enum_name, &item_enum.generics, &item_enum.attrs)
     });
 
-    return TokenStream::from(quote! {
+    let substitutions = deserializable_variants.iter().map(|variant| {
+        if variant.needs_helper_struct() {
+            let helper_struct = Ident::new(
+                &variant.helper_struct_name(&item_enum_name),
+                variant.ident.span(),
+            );
+            let variant_name = &variant.ident;
+
+            quote! {
+                Some([stringify!(#helper_struct), stringify!(#variant_name)])
+            }
+        } else {
+            quote! {
+                None
+            }
+        }
+    });
+
+    return quote! {
         impl #impl_de_generics deserialize_untagged_verbose_error::__serde::de::Deserialize<'de>
             for #item_enum_name #impl_generics #where_clause
         {
@@ -520,6 +546,11 @@ pub fn deserialize_untagged_verbose_error(
                 use deserialize_untagged_verbose_error::__serde::de::Error;
 
                 #(#helper_structs)*
+
+                let __substitutions:
+                    [Option<[&'static str; 2]>; #number_variants] = [
+                    #(#substitutions),*
+                ];
 
                 let __content: deserialize_untagged_verbose_error::__serde_value::Value =
                     deserialize_untagged_verbose_error::__serde::Deserialize::deserialize(
@@ -552,10 +583,11 @@ pub fn deserialize_untagged_verbose_error(
                     deserialize_untagged_verbose_error::UntaggedEnumDeError {
                         enum_name: stringify!(#item_enum_name),
                         errors: __errors_init,
+                        substitutions: __substitutions,
                     },
                 ))
             }
         }
-    })
+    }
     .into();
 }

@@ -98,14 +98,14 @@ fn test_generic_named_variant() {
     {
         let yaml = indoc! {"
         ---
-        value: 3.141
+        value: 5.17
         "};
 
         let value: GenericNamed<f64> = yaml_serde::from_str(yaml).unwrap();
 
         match value {
             GenericNamed::Foo { value } => {
-                assert_eq!(value, 3.141);
+                assert_eq!(value, 5.17);
             }
         }
     }

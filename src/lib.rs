@@ -39,6 +39,14 @@ pub struct UntaggedEnumDeError<const VARIANTS: usize, D: std::error::Error> {
     - `errors[2]` explains why deserializing into a `f64` failed.
      */
     pub errors: [(&'static str, D); VARIANTS],
+    /**
+    Substitutions used internally to replace generated helper struct names with
+    the corresponding enum variant names in error messages.
+
+    This field is populated by the derive macro and is not intended to be used
+    by the user. Therefore, changes to this field are NOT considered API-breaking.
+    */
+    pub substitutions: [Option<[&'static str; 2]>; VARIANTS],
 }
 
 impl<const VARIANTS: usize, D: std::error::Error> std::fmt::Display
@@ -50,10 +58,16 @@ impl<const VARIANTS: usize, D: std::error::Error> std::fmt::Display
             "Failed to deserialize the untagged enum {}:",
             self.enum_name
         )?;
-        for err in self.errors.iter() {
-            writeln!(f, "- Could not deserialize as {}: {}.", err.0, err.1)?;
+
+        for (err, sub) in self.errors.iter().zip(self.substitutions.iter()) {
+            if let Some([helper_name, variant_name]) = sub {
+                let msg = err.1.to_string().replace(helper_name, variant_name);
+                writeln!(f, "- Could not deserialize as {}: {}.", err.0, msg)?;
+            } else {
+                writeln!(f, "- Could not deserialize as {}: {}.", err.0, err.1)?;
+            }
         }
-        return Ok(());
+        Ok(())
     }
 }
 

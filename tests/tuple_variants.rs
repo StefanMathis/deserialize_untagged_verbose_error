@@ -147,7 +147,7 @@ fn test_tuple_variants() {
         let yaml = indoc! {"
         ---
         - hello
-        - 3.14
+        - 5.17
         - true
         "};
 
@@ -156,7 +156,7 @@ fn test_tuple_variants() {
         match value {
             TupleEnum::Triple(text, number, flag) => {
                 assert_eq!(text, "hello");
-                assert_eq!(number, 3.14);
+                assert_eq!(number, 5.17);
                 assert!(flag);
             }
             _ => panic!("test failed"),
@@ -211,7 +211,7 @@ fn test_tuple_variants_with_fallback() {
         let yaml = indoc! {"
         ---
         - hello
-        - 3.14
+        - 5.17
         - true
         "};
 
@@ -220,7 +220,7 @@ fn test_tuple_variants_with_fallback() {
         match value {
             TupleEnumFallback::Triple(text, number, flag) => {
                 assert_eq!(text, "hello");
-                assert_eq!(number, 3.14);
+                assert_eq!(number, 5.17);
                 assert!(flag);
             }
             _ => panic!("test failed"),

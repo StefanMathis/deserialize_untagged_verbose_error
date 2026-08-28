@@ -312,7 +312,7 @@ fn test_attribute_with_struct_variant() {
         ));
     }
     {
-        // false is ignored due to the custom deserializer
+        // 84 is ignored due to the custom deserializer
         let yaml = indoc! {"
             ---
             x: hello

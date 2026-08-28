@@ -121,7 +121,7 @@ where
     D: serde::Deserializer<'de>,
 {
     let (string, number) = <(String, i32)>::deserialize(deserializer)?;
-    return Ok((string, number, true));
+    Ok((string, number, true))
 }
 
 #[derive(Debug, DeserializeUntaggedVerboseError)]
@@ -374,4 +374,13 @@ fn test_failed_deserialize_with_followed_by_tuple_variant() {
         Ok(FailedDeserializeWithTuple::Third { x, y })
             if x == "hello" && y == 42
     ));
+    {
+        let yaml = indoc! {"
+            ---
+            hello
+        "};
+
+        let result = yaml_serde::from_str::<FailedDeserializeWithTuple>(yaml).unwrap_err();
+        println!("{result}");
+    }
 }
