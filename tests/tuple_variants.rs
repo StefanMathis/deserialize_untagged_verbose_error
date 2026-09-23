@@ -319,3 +319,31 @@ fn test_tuple_variants_with_fallback() {
         );
     }
 }
+
+#[test]
+fn test_newtype_wrapping_sequence_type() {
+    // Tests regression found by MilesJohnson:
+    // https://github.com/StefanMathis/deserialize_untagged_verbose_error/issues/1
+
+    #[derive(Debug, PartialEq, DeserializeUntaggedVerboseError)]
+    enum Files {
+        One(String),
+        Many(Vec<String>),
+    }
+
+    let value: Files = yaml_serde::from_str("test").unwrap();
+    assert_eq!(value, Files::One("test".into()));
+
+    let yaml = indoc! {"
+        ---
+        - '42'
+        - hello
+        - Another string
+        "};
+
+    let value: Files = yaml_serde::from_str(yaml).unwrap();
+    assert_eq!(
+        value,
+        Files::Many(vec!["42".into(), "hello".into(), "Another string".into()])
+    );
+}

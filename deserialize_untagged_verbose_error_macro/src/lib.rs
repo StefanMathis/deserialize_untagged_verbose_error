@@ -340,38 +340,55 @@ pub fn deserialize_untagged_verbose_error(
 
             match &self.kind {
                 VariantKind::Unnamed(fields) => {
-                    let expected_len = fields.len();
+                    /*
+                    Only perform the length pre-check when the variant deserializes
+                    as a tuple, i.e. fields.len() > 1 (or when the helper-struct
+                    path is used for a multi-field variant). Single-field
+                    variants should fall through to the normal
+                    <#ty as Deserialize>::deserialize(...) attempt.
+                     */
+                    let length_precheck = if fields.len() > 1 {
+                        let expected_len = fields.len();
+                        quote! {
+                            if let deserialize_untagged_verbose_error::__serde_value::Value::Seq(__seq) = &__content {
+                                if __seq.len() != #expected_len {
+                                    let __elem = &mut __errors[__counter];
+                                    __elem.write((
+                                        stringify!(#ident),
+                                        __D::Error::custom(format!(
+                                            "invalid length {}, expected a tuple of size {}",
+                                            __seq.len(),
+                                            #expected_len
+                                        )),
+                                    ));
+                                    __counter += 1;
+
+                                    // Length precheck failed - do not attempt to deserialize
+                                    false
+                                } else {
+                                    true
+                                }
+                            } else {
+                                true
+                            }
+                        }
+                    } else {
+                        quote! { true }
+                    };
 
                     quote! {
-                        match &__content {
-                            deserialize_untagged_verbose_error::__serde_value::Value::Seq(__seq)
-                                if __seq.len() != #expected_len =>
-                            {
-                                let __elem = &mut __errors[__counter];
-                                __elem.write((
-                                    stringify!(#ident),
-                                    __D::Error::custom(format!(
-                                        "invalid length {}, expected a tuple of size {}",
-                                        __seq.len(),
-                                        #expected_len
-                                    )),
-                                ));
-                                __counter += 1;
-                            }
-
-                            _ => {
-                                match <#deserialize_type as deserialize_untagged_verbose_error::__serde::Deserialize<'de>>::deserialize(
-                                    deserialize_untagged_verbose_error::__serde_value::ValueDeserializer::new(
-                                        __content.clone()
-                                    )
-                                ) {
-                                    Ok(__var) => return Ok(#constructor),
-                                    Err(__error) => {
-                                        let __elem = &mut __errors[__counter];
-                                        __elem.write((stringify!(#ident), __error));
-                                        __counter += 1;
-                                    },
-                                }
+                        if #length_precheck {
+                            match <#deserialize_type as deserialize_untagged_verbose_error::__serde::Deserialize<'de>>::deserialize(
+                                deserialize_untagged_verbose_error::__serde_value::ValueDeserializer::new(
+                                    __content.clone()
+                                )
+                            ) {
+                                Ok(__var) => return Ok(#constructor),
+                                Err(__error) => {
+                                    let __elem = &mut __errors[__counter];
+                                    __elem.write((stringify!(#ident), __error));
+                                    __counter += 1;
+                                },
                             }
                         }
                     }
