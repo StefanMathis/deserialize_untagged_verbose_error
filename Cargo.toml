@@ -1,6 +1,6 @@
 [package]
 name = "deserialize_untagged_verbose_error"
-version = "0.1.7"
+version = "0.1.8"
 edition = "2024"
 description = "A drop-in replacement for Serde's #[serde(untagged)] enum deserialization with a verbose error message"
 readme = "README.md"
@@ -10,7 +10,7 @@ repository = "https://github.com/StefanMathis/deserialize_untagged_verbose_error
 [dependencies]
 serde = { version = "1", features = ["derive"] }
 serde-value = "0.7"
-deserialize_untagged_verbose_error_macro = { version = "0.1.5", path = "deserialize_untagged_verbose_error_macro"}
+deserialize_untagged_verbose_error_macro = { version = "0.1.6", path = "deserialize_untagged_verbose_error_macro"}
 
 [dev-dependencies]
 indoc = "1.0"
